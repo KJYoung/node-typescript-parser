@@ -23,11 +23,11 @@ function parseVariable(parent, node) {
                 case 9: // NumericLiteral, BigIntLiteral
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "number", node.getStart(), node.getEnd());
                     break;
-                case 10:
+                case 10: // StringLiteral
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "string", node.getStart(), node.getEnd());
                     break;
-                case 202:
-                    console.log("CASE 202");
+                case 202: // PrefixUnaryExpression
+                    // console.log("CASE 202");
                     const parameters = o.initializer.parameters;
                     let nodeType = "";
                     parameters.forEach((param) => {

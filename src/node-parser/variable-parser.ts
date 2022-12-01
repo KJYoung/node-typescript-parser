@@ -25,8 +25,8 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
                 case 10: // StringLiteral
                     declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "string", node.getStart(), node.getEnd());
                     break;
-                case 202: // 
-                    console.log("CASE 202");
+                case 202: // PrefixUnaryExpression
+                    // console.log("CASE 202");
                     const parameters = (o.initializer as unknown as {parameters : any}).parameters;
                     let nodeType = "";
                     parameters.forEach((param : any) => {
