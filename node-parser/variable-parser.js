@@ -28,8 +28,16 @@ function parseVariable(parent, node) {
                     break;
                 case 202:
                     console.log("CASE 202");
-                    console.log(o.initializer.parameters);
-                    console.log(o.initializer.body);
+                    const parameters = o.initializer.parameters;
+                    let nodeType = "";
+                    parameters.forEach((param) => {
+                        nodeType += parse_utilities_1.getNodeType(param.type);
+                    });
+                    // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
+                    nodeType += " => unknown";
+                    console.log(nodeType);
+                    declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), nodeType, node.getStart(), node.getEnd());
+                    break;
                 default:
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), parse_utilities_1.getNodeType(o.type ? o.type : (_b = o.initializer) === null || _b === void 0 ? void 0 : _b.type), node.getStart(), node.getEnd());
                     break;
