@@ -25,6 +25,10 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
                 case 10:
                     declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "string", node.getStart(), node.getEnd());
                     break;
+                case 202:
+                    console.log("CASE 202");
+                    console.log((o.initializer as unknown as {parameters : any}).parameters);
+                    console.log((o.initializer as unknown as {body : any}).body);
                 default:
                     declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type), node.getStart(), node.getEnd());
                     break;
