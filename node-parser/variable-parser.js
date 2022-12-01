@@ -35,7 +35,7 @@ function parseVariable(parent, node) {
                     });
                     // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
                     nodeType += " => unknown";
-                    console.log(nodeType);
+                    // console.log(nodeType);
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), nodeType, node.getStart(), node.getEnd());
                     break;
                 default:
