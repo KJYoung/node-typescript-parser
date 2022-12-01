@@ -17,14 +17,18 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
     const isConst = node.declarationList.getChildren().some(o => o.kind === SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            const declaration = new VariableDeclaration(
-                o.name.getText(),
-                isConst,
-                isNodeExported(node),
-                getNodeType(o.type),
-                node.getStart(),
-                node.getEnd(),
-            );
+            let declaration;
+            switch(o.initializer?.kind) {
+                case 8: case 9:// NumericLiteral, BigIntLiteral
+                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
+                    break;
+                case 10:
+                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "string", node.getStart(), node.getEnd());
+                    break;
+                default:
+                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type), node.getStart(), node.getEnd());
+                    break;
+            }
             if (isCallableDeclaration(parent)) {
                 parent.variables.push(declaration);
             } else {
