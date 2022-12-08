@@ -14,6 +14,7 @@ function getExpressionType(left: any): string {
     // &, |, ^, ~, <<, >>, >>>
     // =, +=, -=, *=, /=
     // unary -, string concat +, conditional 'A ? B : C', typeof, instanceof
+    // Should check string concat first, then just evaluate except string concat.
     if(left && left.kind ){
         switch(left.kind){
             case 8: case 9: // NumericLiteral, BigIntLiteral
