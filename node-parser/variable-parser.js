@@ -247,6 +247,24 @@ function getTypeFromInitializer(init, declarations) {
                 falseTypeSet.forEach(t => typeSet.add(t));
                 return typeSet;
             }
+        case typescript_1.SyntaxKind.ArrayLiteralExpression: // 192
+            const elements = init.elements;
+            elements.forEach(e => {
+                const eTypeSet = getTypeFromInitializer(e, declarations);
+                eTypeSet.forEach(ee => typeSet.add(ee));
+            });
+            let typeStr = "";
+            typeSet.forEach(t => typeStr += (" | " + t));
+            typeStr = typeStr.slice(3);
+            if (typeSet.size === 1) {
+                typeSet.clear();
+                typeSet.add(typeStr + "[]");
+            }
+            else {
+                typeSet.clear();
+                typeSet.add("(" + typeStr + ")[]");
+            }
+            return typeSet;
         default:
             // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             typeSet.add(`Undefined ${init === null || init === void 0 ? void 0 : init.kind}`);
