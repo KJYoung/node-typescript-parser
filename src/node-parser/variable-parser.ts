@@ -20,7 +20,8 @@ function getTypeOfVar(name : string, declarations: Declaration[]): string {
     }
 }
 
-function getBinaryExpressionType(initializer: any, declarations: Declaration[]): string {
+function getBinaryExpressionType(initializer: any, declarations: Declaration[]): Set<string> {
+    let typeSet = new Set<string>();
     // Consider operation...
     // number, number => number +, -, *, / , %
     // number => number ++, --
@@ -58,7 +59,8 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
     }
     const isStringConcatResult = isStringConcat(initializer);
     if(isStringConcatResult[0]){
-        return "string";
+        typeSet.add("string");
+        return typeSet;
     }else{
         if(isStringConcatResult[1]){
             // console.log("Maybe StringConcat?");
@@ -66,11 +68,14 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
         if(initializer && initializer.kind ){
             switch(initializer.kind){
                 case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
-                    return "number";
+                    typeSet.add("number");
+                    return typeSet;
                 case SyntaxKind.StringLiteral: // 10
-                    return "string";
+                    typeSet.add("string");
+                    return typeSet;
                 case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
-                    return "boolean";
+                    typeSet.add("boolean");
+                    return typeSet;
                 case SyntaxKind.ParenthesizedExpression: // 200
                     return getBinaryExpressionType(initializer.expression, declarations);
                 case SyntaxKind.BinaryExpression: // 209
@@ -78,72 +83,95 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                         case SyntaxKind.PlusToken: case SyntaxKind.MinusToken: case SyntaxKind.AsteriskToken: case SyntaxKind.SlashToken: case SyntaxKind.PercentToken: 
                         case SyntaxKind.LessThanLessThanToken: case SyntaxKind.GreaterThanGreaterThanToken: case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
                         case SyntaxKind.AmpersandToken: case SyntaxKind.BarToken:
-                            return "number";
+                            typeSet.add("number");
+                            return typeSet;
                         case SyntaxKind.LessThanToken: case SyntaxKind.LessThanEqualsToken: case SyntaxKind.GreaterThanToken: case SyntaxKind.GreaterThanEqualsToken:
-                            return "boolean";
+                            typeSet.add("boolean");
+                            return typeSet;
                         case SyntaxKind.EqualsToken: case SyntaxKind.PlusEqualsToken: case SyntaxKind.MinusEqualsToken: case SyntaxKind.AsteriskEqualsToken: case SyntaxKind.SlashEqualsToken:
                             const target     = initializer.left;
                             const identifier = target.escapedText;
-                            return getTypeOfVar(identifier, declarations);
+                            typeSet.add(getTypeOfVar(identifier, declarations));
+                            return typeSet;
                         case SyntaxKind.InstanceOfKeyword:
-                            return "boolean";
+                            typeSet.add("boolean");
+                            return typeSet;
                         case SyntaxKind.AmpersandAmpersandToken:
                             // A && B
                             if(initializer.left.kind === SyntaxKind.TrueKeyword){
                                 return getTypeFromInitializer(initializer.right, declarations);
                             }else if(initializer.left.kind === SyntaxKind.FalseKeyword){
-                                return "boolean";
+                                typeSet.add("boolean");
+                                return typeSet;
                             }else{
                                 const rightType = getTypeFromInitializer(initializer.right, declarations);
-                                return rightType === 'boolean' ? `boolean` : `${rightType} | boolean`;
+                                typeSet.add("boolean");
+                                rightType.forEach(t => typeSet.add(t));
+                                return typeSet;
                             }
                         case SyntaxKind.BarBarToken:
                             // A || B
                             if(initializer.left.kind === SyntaxKind.TrueKeyword){
-                                return "boolean";
+                                typeSet.add("boolean");
+                                return typeSet;
                             }else if(initializer.left.kind === SyntaxKind.FalseKeyword){
                                 return getTypeFromInitializer(initializer.right, declarations);
                             }else{
                                 const rightType = getTypeFromInitializer(initializer.right, declarations);
-                                return rightType === 'boolean' ? `boolean` : `${rightType} | boolean`;
+                                typeSet.add("boolean");
+                                rightType.forEach(t => typeSet.add(t));
+                                return typeSet;
                             }
                     }
-                    return `Go deeper ${initializer.operatorToken.kind}`;
+                    typeSet.add(`Go deeper ${initializer.operatorToken.kind}`);
+                    return typeSet;
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
-                    return "number";
+                    typeSet.add("number");
+                    return typeSet;
                 default:
-                    return `Complicated Expression ${initializer.kind}`;
+                    typeSet.add(`Complicated Expression ${initializer.kind}`);
+                    return typeSet;
             }
         }else{
-            return `Complicated Expression`;
+            typeSet.add(`Complicated Expression`);
+            return typeSet;
         }
     }
 }
 
-function getTypeFromInitializer(init: ts.Expression | undefined, declarations: Declaration[]): string {
+function getTypeFromInitializer(init: ts.Expression | undefined, declarations: Declaration[]): Set<string> {
+    const typeSet = new Set<string>();
     let initializer;
     if(!init){
-        return "Undefined INIT";
+        typeSet.add("Undefined INIT");
+        return typeSet;
     }
     switch(init?.kind) {
         case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
-            return "number";
+            typeSet.add("number");
+            return typeSet;
         case SyntaxKind.StringLiteral: // 10
-            return "string";
+            typeSet.add("string");
+            return typeSet;
         case SyntaxKind.Identifier: // 75
             const identifier = (init as unknown as {escapedText : string}).escapedText;
-            return getTypeOfVar(identifier, declarations);
+            typeSet.add(getTypeOfVar(identifier, declarations));
+            return typeSet;
         case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
-            return "boolean";
+            typeSet.add("boolean");
+            return typeSet;
         case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
             switch(( init as unknown as { operator : any}).operator){
                 case SyntaxKind.ExclamationToken:
-                    return "boolean";
+                    typeSet.add("boolean");
+                    return typeSet;
                 case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
                 case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
-                    return "number";
+                    typeSet.add("number");
+                    return typeSet;
                 default:
-                    return "Unknown Unary Expression";
+                    typeSet.add("Unknown UnaryOp");
+                    return typeSet;
             }
         case SyntaxKind.ParenthesizedExpression: // 200
             initializer = (init as unknown as  { expression : any });  
@@ -156,12 +184,16 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             });
             // nodeType += getNodeType((init as unknown as {body : any}).body.type )
             nodeType += " => unknown";
-            return nodeType;
+            typeSet.add(nodeType);
+            return typeSet;
         case SyntaxKind.TypeOfExpression: // 204
-            return "string";
+            typeSet.add("string");
+            return typeSet;
         case SyntaxKind.BinaryExpression: // 209
-            initializer = (init as unknown as  {left : any, right : any, operatorToken : any });  
-            return getBinaryExpressionType(initializer, declarations);
+            initializer = (init as unknown as  {left : any, right : any, operatorToken : any });
+            const binaryTypeSet = getBinaryExpressionType(initializer, declarations);
+            binaryTypeSet.forEach(t => typeSet.add(t));
+            return typeSet;
         case SyntaxKind.ConditionalExpression: // 210
             const initTernary = init as unknown as { condition : any, questionToken : any, whenTrue : any, colonToken : any, whenFalse : any };
             if(initTernary.condition.kind === SyntaxKind.TrueKeyword){
@@ -169,13 +201,16 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             }else if(initTernary.condition.kind === SyntaxKind.FalseKeyword){
                 return getTypeFromInitializer(initTernary.whenFalse, declarations);
             }else{
-                const trueType = getTypeFromInitializer(initTernary.whenTrue, declarations);
-                const falseType = getTypeFromInitializer(initTernary.whenFalse, declarations);
-                return `${trueType} | ${falseType}`;
+                const trueTypeSet = getTypeFromInitializer(initTernary.whenTrue, declarations);
+                const falseTypeSet = getTypeFromInitializer(initTernary.whenFalse, declarations);
+                trueTypeSet.forEach(t => typeSet.add(t));
+                falseTypeSet.forEach(t => typeSet.add(t));
+                return typeSet;
             }
         default:
             // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
-            return `Undefined ${init?.kind}`;
+            typeSet.add(`Undefined ${init?.kind}`);
+            return typeSet;
     }
 }
 
@@ -183,7 +218,10 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
 function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : Declaration[]): string {
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
-    return  getTypeFromInitializer(o.initializer, declarations);
+    const typeSet = getTypeFromInitializer(o.initializer, declarations);
+    let typeStr = "";
+    typeSet.forEach(t => typeStr += (" | " + t) );
+    return typeStr.slice(3);
 }
 
 /**
