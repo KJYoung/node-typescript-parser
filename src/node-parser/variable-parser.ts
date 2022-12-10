@@ -49,11 +49,15 @@ function getExpressionType(initializer: any): string {
                 case SyntaxKind.BinaryExpression: // 209
                     switch(initializer.operatorToken.kind){
                         case SyntaxKind.PlusToken: case SyntaxKind.MinusToken: case SyntaxKind.AsteriskToken: case SyntaxKind.PercentToken:
+                        case SyntaxKind.LessThanLessThanToken: case SyntaxKind.GreaterThanGreaterThanToken: case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
+                        case SyntaxKind.AmpersandToken: case SyntaxKind.BarToken:
                             return "number";
                         case SyntaxKind.LessThanToken: case SyntaxKind.LessThanEqualsToken: case SyntaxKind.GreaterThanToken: case SyntaxKind.GreaterThanEqualsToken:
                             return "boolean";
                     }
                     return "Go deeper";
+                case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
+                    return "number";
                 default:
                     return `Complicated Expression ${initializer.kind}`;
             }
@@ -88,6 +92,9 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
                     break;
                 case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
                     declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "boolean", node.getStart(), node.getEnd());
+                    break;
+                case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
+                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
                     break;
                 case SyntaxKind.BinaryExpression: // 209
                     const initializer : {left : any, right: any, operatorToken : any } = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  

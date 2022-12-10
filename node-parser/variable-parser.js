@@ -58,6 +58,11 @@ function getExpressionType(initializer) {
                         case typescript_1.SyntaxKind.MinusToken:
                         case typescript_1.SyntaxKind.AsteriskToken:
                         case typescript_1.SyntaxKind.PercentToken:
+                        case typescript_1.SyntaxKind.LessThanLessThanToken:
+                        case typescript_1.SyntaxKind.GreaterThanGreaterThanToken:
+                        case typescript_1.SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
+                        case typescript_1.SyntaxKind.AmpersandToken:
+                        case typescript_1.SyntaxKind.BarToken:
                             return "number";
                         case typescript_1.SyntaxKind.LessThanToken:
                         case typescript_1.SyntaxKind.LessThanEqualsToken:
@@ -66,6 +71,9 @@ function getExpressionType(initializer) {
                             return "boolean";
                     }
                     return "Go deeper";
+                case typescript_1.SyntaxKind.PrefixUnaryExpression:
+                case typescript_1.SyntaxKind.PostfixUnaryExpression:
+                    return "number";
                 default:
                     return `Complicated Expression ${initializer.kind}`;
             }
@@ -102,6 +110,10 @@ function parseVariable(parent, node) {
                 case typescript_1.SyntaxKind.FalseKeyword:
                 case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "boolean", node.getStart(), node.getEnd());
+                    break;
+                case typescript_1.SyntaxKind.PrefixUnaryExpression:
+                case typescript_1.SyntaxKind.PostfixUnaryExpression:
+                    declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "number", node.getStart(), node.getEnd());
                     break;
                 case typescript_1.SyntaxKind.BinaryExpression: // 209
                     const initializer = o.initializer;
