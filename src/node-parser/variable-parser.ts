@@ -6,7 +6,7 @@ import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
 import { getNodeType, isNodeExported } from './parse-utilities';
 
-function getExpressionType(initializer: any): string {
+function getBinaryExpressionType(initializer: any): string {
     // Consider operation...
     // number, number => number +, -, *, / , %
     // number => number ++, --
@@ -20,8 +20,16 @@ function getExpressionType(initializer: any): string {
         if(initializer && initializer.operatorToken){
             if(initializer.operatorToken.kind === SyntaxKind.PlusToken){
                 // String?
-                if(initializer.left?.kind === SyntaxKind.StringLiteral && initializer.right?.kind === SyntaxKind.StringLiteral){
+                if(initializer.left?.kind === SyntaxKind.StringLiteral || initializer.right?.kind === SyntaxKind.StringLiteral){
                     return [true, false];
+                }else if(initializer.left?.kind === SyntaxKind.ParenthesizedExpression && initializer.right?.kind === SyntaxKind.ParenthesizedExpression){
+                    const resultLeft = isStringConcat(initializer.left.expression);
+                    const resultRight = isStringConcat(initializer.right.expression);
+                    return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]];
+                }else if(initializer.left?.kind === SyntaxKind.ParenthesizedExpression){
+                    return isStringConcat(initializer.left.expression);
+                }else if(initializer.right?.kind === SyntaxKind.ParenthesizedExpression){
+                    return isStringConcat(initializer.right.expression);
                 }else{
                     return [false, true];
                 }
@@ -38,6 +46,9 @@ function getExpressionType(initializer: any): string {
     if(isStringConcatResult[0]){
         return "string";
     }else{
+        if(isStringConcatResult[1]){
+            console.log("Maybe StringConcat?");
+        }
         if(initializer && initializer.kind ){
             switch(initializer.kind){
                 case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
@@ -94,12 +105,23 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
                     declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "boolean", node.getStart(), node.getEnd());
                     break;
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
+                    switch(( o.initializer as unknown as { operator : any}).operator){
+                        case SyntaxKind.ExclamationToken:
+                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "boolean", node.getStart(), node.getEnd());
+                            break;
+                        case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
+                        case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
+                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
+                            break;
+                        default:
+                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "Unknown Unary Expression", node.getStart(), node.getEnd());
+                            break;
+                    }
                     break;
                 case SyntaxKind.BinaryExpression: // 209
                     const initializer : {left : any, right: any, operatorToken : any } = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  
                     if(initializer.left && initializer.operatorToken){
-                        declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getExpressionType(initializer), node.getStart(), node.getEnd());
+                        declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getBinaryExpressionType(initializer), node.getStart(), node.getEnd());
                     }else{
                         declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type), node.getStart(), node.getEnd());
                     }

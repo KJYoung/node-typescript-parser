@@ -5,7 +5,7 @@ const typescript_1 = require("typescript");
 const VariableDeclaration_1 = require("../declarations/VariableDeclaration");
 const TypescriptHeroGuards_1 = require("../type-guards/TypescriptHeroGuards");
 const parse_utilities_1 = require("./parse-utilities");
-function getExpressionType(initializer) {
+function getBinaryExpressionType(initializer) {
     // Consider operation...
     // number, number => number +, -, *, / , %
     // number => number ++, --
@@ -16,12 +16,23 @@ function getExpressionType(initializer) {
     // unary -, string concat +, conditional 'A ? B : C', typeof, instanceof
     // Should check string concat first, then just evaluate except string concat.
     const isStringConcat = (initializer) => {
-        var _a, _b;
+        var _a, _b, _c, _d, _e, _f;
         if (initializer && initializer.operatorToken) {
             if (initializer.operatorToken.kind === typescript_1.SyntaxKind.PlusToken) {
                 // String?
-                if (((_a = initializer.left) === null || _a === void 0 ? void 0 : _a.kind) === typescript_1.SyntaxKind.StringLiteral && ((_b = initializer.right) === null || _b === void 0 ? void 0 : _b.kind) === typescript_1.SyntaxKind.StringLiteral) {
+                if (((_a = initializer.left) === null || _a === void 0 ? void 0 : _a.kind) === typescript_1.SyntaxKind.StringLiteral || ((_b = initializer.right) === null || _b === void 0 ? void 0 : _b.kind) === typescript_1.SyntaxKind.StringLiteral) {
                     return [true, false];
+                }
+                else if (((_c = initializer.left) === null || _c === void 0 ? void 0 : _c.kind) === typescript_1.SyntaxKind.ParenthesizedExpression && ((_d = initializer.right) === null || _d === void 0 ? void 0 : _d.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
+                    const resultLeft = isStringConcat(initializer.left.expression);
+                    const resultRight = isStringConcat(initializer.right.expression);
+                    return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]];
+                }
+                else if (((_e = initializer.left) === null || _e === void 0 ? void 0 : _e.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
+                    return isStringConcat(initializer.left.expression);
+                }
+                else if (((_f = initializer.right) === null || _f === void 0 ? void 0 : _f.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
+                    return isStringConcat(initializer.right.expression);
                 }
                 else {
                     return [false, true];
@@ -42,6 +53,9 @@ function getExpressionType(initializer) {
         return "string";
     }
     else {
+        if (isStringConcatResult[1]) {
+            console.log("Maybe StringConcat?");
+        }
         if (initializer && initializer.kind) {
             switch (initializer.kind) {
                 case typescript_1.SyntaxKind.NumericLiteral:
@@ -113,12 +127,25 @@ function parseVariable(parent, node) {
                     break;
                 case typescript_1.SyntaxKind.PrefixUnaryExpression:
                 case typescript_1.SyntaxKind.PostfixUnaryExpression:
-                    declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "number", node.getStart(), node.getEnd());
+                    switch (o.initializer.operator) {
+                        case typescript_1.SyntaxKind.ExclamationToken:
+                            declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "boolean", node.getStart(), node.getEnd());
+                            break;
+                        case typescript_1.SyntaxKind.PlusToken:
+                        case typescript_1.SyntaxKind.MinusToken:
+                        case typescript_1.SyntaxKind.PlusPlusToken:
+                        case typescript_1.SyntaxKind.MinusMinusToken:
+                            declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "number", node.getStart(), node.getEnd());
+                            break;
+                        default:
+                            declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "Unknown Unary Expression", node.getStart(), node.getEnd());
+                            break;
+                    }
                     break;
                 case typescript_1.SyntaxKind.BinaryExpression: // 209
                     const initializer = o.initializer;
                     if (initializer.left && initializer.operatorToken) {
-                        declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getExpressionType(initializer), node.getStart(), node.getEnd());
+                        declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getBinaryExpressionType(initializer), node.getStart(), node.getEnd());
                     }
                     else {
                         declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), parse_utilities_1.getNodeType(o.type ? o.type : (_b = o.initializer) === null || _b === void 0 ? void 0 : _b.type), node.getStart(), node.getEnd());
