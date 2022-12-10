@@ -1,7 +1,7 @@
 import { SyntaxKind, VariableStatement } from 'typescript';
 import ts = require('typescript');
 
-import { CallableDeclaration } from '../declarations/Declaration';
+import { CallableDeclaration, Declaration } from '../declarations/Declaration';
 import { VariableDeclaration } from '../declarations/VariableDeclaration';
 import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
@@ -79,7 +79,11 @@ function getBinaryExpressionType(initializer: any): string {
     }
 }
 
-function getTypeTextFromDeclaration(o : ts.VariableDeclaration): string {
+function findNodeByName(declaration : Declaration, keyword : string): boolean{
+    return declaration.name === keyword;
+}
+// function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : ts.NodeArray<ts.VariableDeclaration>): string {
+function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : (Declaration[])): string {
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
     switch(o.initializer?.kind) {
@@ -115,6 +119,15 @@ function getTypeTextFromDeclaration(o : ts.VariableDeclaration): string {
             // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
             nodeType += " => unknown";
             return nodeType;
+        case SyntaxKind.Identifier: // 75
+            const identifier = (o.initializer as unknown as {escapedText : string}).escapedText;
+            const node       = declarations.filter(dec => findNodeByName(dec, identifier));
+            if (node.length !== 1){
+                return "Something wrong : Multiple identifier";
+            }else{
+                return (node[0] as unknown as { type : string }).type;
+            }
+            // Should find the identifier's type
         default:
             // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
@@ -132,11 +145,13 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
     const isConst = node.declarationList.getChildren().some(o => o.kind === SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            console.log(o);
-            const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o), node.getStart(), node.getEnd());
+            // console.log(o);
             if (isCallableDeclaration(parent)) {
+                // const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.variables), node.getStart(), node.getEnd());
+                const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, []), node.getStart(), node.getEnd());
                 parent.variables.push(declaration);
             } else {
+                const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.declarations), node.getStart(), node.getEnd());
                 parent.declarations.push(declaration);
             }
         });

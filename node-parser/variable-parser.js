@@ -97,7 +97,11 @@ function getBinaryExpressionType(initializer) {
         }
     }
 }
-function getTypeTextFromDeclaration(o) {
+function findNodeByName(declaration, keyword) {
+    return declaration.name === keyword;
+}
+// function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : ts.NodeArray<ts.VariableDeclaration>): string {
+function getTypeTextFromDeclaration(o, declarations) {
     var _a, _b, _c;
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
@@ -140,6 +144,16 @@ function getTypeTextFromDeclaration(o) {
             // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
             nodeType += " => unknown";
             return nodeType;
+        case typescript_1.SyntaxKind.Identifier: // 75
+            const identifier = o.initializer.escapedText;
+            const node = declarations.filter(dec => findNodeByName(dec, identifier));
+            if (node.length !== 1) {
+                return "Something wrong : Multiple identifier";
+            }
+            else {
+                return node[0].type;
+            }
+        // Should find the identifier's type
         default:
             // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             return parse_utilities_1.getNodeType(o.type ? o.type : (_c = o.initializer) === null || _c === void 0 ? void 0 : _c.type) || "Undefined";
@@ -156,12 +170,14 @@ function parseVariable(parent, node) {
     const isConst = node.declarationList.getChildren().some(o => o.kind === typescript_1.SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            console.log(o);
-            const declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getTypeTextFromDeclaration(o), node.getStart(), node.getEnd());
+            // console.log(o);
             if (TypescriptHeroGuards_1.isCallableDeclaration(parent)) {
+                // const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.variables), node.getStart(), node.getEnd());
+                const declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getTypeTextFromDeclaration(o, []), node.getStart(), node.getEnd());
                 parent.variables.push(declaration);
             }
             else {
+                const declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getTypeTextFromDeclaration(o, parent.declarations), node.getStart(), node.getEnd());
                 parent.declarations.push(declaration);
             }
         });
