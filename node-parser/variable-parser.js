@@ -108,6 +108,30 @@ function getBinaryExpressionType(initializer, declarations) {
                             return getTypeOfVar(identifier, declarations);
                         case typescript_1.SyntaxKind.InstanceOfKeyword:
                             return "boolean";
+                        case typescript_1.SyntaxKind.AmpersandAmpersandToken:
+                            // A && B
+                            if (initializer.left.kind === typescript_1.SyntaxKind.TrueKeyword) {
+                                return getTypeFromInitializer(initializer.right, declarations);
+                            }
+                            else if (initializer.left.kind === typescript_1.SyntaxKind.FalseKeyword) {
+                                return "boolean";
+                            }
+                            else {
+                                const rightType = getTypeFromInitializer(initializer.right, declarations);
+                                return rightType === 'boolean' ? `boolean` : `${rightType} | boolean`;
+                            }
+                        case typescript_1.SyntaxKind.BarBarToken:
+                            // A || B
+                            if (initializer.left.kind === typescript_1.SyntaxKind.TrueKeyword) {
+                                return "boolean";
+                            }
+                            else if (initializer.left.kind === typescript_1.SyntaxKind.FalseKeyword) {
+                                return getTypeFromInitializer(initializer.right, declarations);
+                            }
+                            else {
+                                const rightType = getTypeFromInitializer(initializer.right, declarations);
+                                return rightType === 'boolean' ? `boolean` : `${rightType} | boolean`;
+                            }
                     }
                     return `Go deeper ${initializer.operatorToken.kind}`;
                 case typescript_1.SyntaxKind.PrefixUnaryExpression:
@@ -133,6 +157,9 @@ function getTypeFromInitializer(init, declarations) {
             return "number";
         case typescript_1.SyntaxKind.StringLiteral: // 10
             return "string";
+        case typescript_1.SyntaxKind.Identifier: // 75
+            const identifier = init.escapedText;
+            return getTypeOfVar(identifier, declarations);
         case typescript_1.SyntaxKind.FalseKeyword:
         case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
             return "boolean";
@@ -152,11 +179,6 @@ function getTypeFromInitializer(init, declarations) {
         case typescript_1.SyntaxKind.ParenthesizedExpression: // 200
             initializer = init;
             return getTypeFromInitializer(initializer.expression, declarations);
-        case typescript_1.SyntaxKind.TypeOfExpression: // 204
-            return "string";
-        case typescript_1.SyntaxKind.BinaryExpression: // 209
-            initializer = init;
-            return getBinaryExpressionType(initializer, declarations);
         case typescript_1.SyntaxKind.ArrowFunction: // 202
             const parameters = init.parameters;
             let nodeType = "";
@@ -166,9 +188,24 @@ function getTypeFromInitializer(init, declarations) {
             // nodeType += getNodeType((init as unknown as {body : any}).body.type )
             nodeType += " => unknown";
             return nodeType;
-        case typescript_1.SyntaxKind.Identifier: // 75
-            const identifier = init.escapedText;
-            return getTypeOfVar(identifier, declarations);
+        case typescript_1.SyntaxKind.TypeOfExpression: // 204
+            return "string";
+        case typescript_1.SyntaxKind.BinaryExpression: // 209
+            initializer = init;
+            return getBinaryExpressionType(initializer, declarations);
+        case typescript_1.SyntaxKind.ConditionalExpression: // 210
+            const initTernary = init;
+            if (initTernary.condition.kind === typescript_1.SyntaxKind.TrueKeyword) {
+                return getTypeFromInitializer(initTernary.whenTrue, declarations);
+            }
+            else if (initTernary.condition.kind === typescript_1.SyntaxKind.FalseKeyword) {
+                return getTypeFromInitializer(initTernary.whenFalse, declarations);
+            }
+            else {
+                const trueType = getTypeFromInitializer(initTernary.whenTrue, declarations);
+                const falseType = getTypeFromInitializer(initTernary.whenFalse, declarations);
+                return `${trueType} | ${falseType}`;
+            }
         default:
             // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             return `Undefined ${init === null || init === void 0 ? void 0 : init.kind}`;
