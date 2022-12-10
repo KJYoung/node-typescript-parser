@@ -37,16 +37,22 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                 // String?
                 if(initializer.left?.kind === SyntaxKind.StringLiteral || initializer.right?.kind === SyntaxKind.StringLiteral){
                     return [true, false];
+                // Parenthesized Expression?
                 }else if(initializer.left?.kind === SyntaxKind.ParenthesizedExpression && initializer.right?.kind === SyntaxKind.ParenthesizedExpression){
-                    const resultLeft = isStringConcat(initializer.left.expression);
-                    const resultRight = isStringConcat(initializer.right.expression);
-                    return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]];
+                    return isStringConcat({ left : initializer.left.expression, operatorToken : { kind : SyntaxKind.PlusToken }, right : initializer.right.expression });
                 }else if(initializer.left?.kind === SyntaxKind.ParenthesizedExpression){
-                    return isStringConcat(initializer.left.expression);
+                    return isStringConcat({ left : initializer.left.expression, operatorToken : { kind : SyntaxKind.PlusToken }, right : initializer.right });
                 }else if(initializer.right?.kind === SyntaxKind.ParenthesizedExpression){
-                    return isStringConcat(initializer.right.expression);
+                    return isStringConcat({ left : initializer.left, operatorToken : { kind : SyntaxKind.PlusToken }, right : initializer.right.expression });
+                // Else.
                 }else{
-                    return [false, true];
+                    const leftSet = getTypeFromInitializer(initializer.left, declarations);
+                    const rightSet = getTypeFromInitializer(initializer.right, declarations);
+                    if(leftSet.has("string") || rightSet.has("string")){
+                        return [true, false];
+                    }else{
+                        return [false, false];
+                    }
                 }
             }else{
                 const resultLeft = isStringConcat(initializer.left);
@@ -235,7 +241,7 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
     const isConst = node.declarationList.getChildren().some(o => o.kind === SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            console.log(o);
+            // console.log(o);
             if (isCallableDeclaration(parent)) {
                 // const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.variables), node.getStart(), node.getEnd());
                 const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, []), node.getStart(), node.getEnd());

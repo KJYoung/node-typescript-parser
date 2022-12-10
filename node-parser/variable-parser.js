@@ -35,20 +35,27 @@ function getBinaryExpressionType(initializer, declarations) {
                 // String?
                 if (((_a = initializer.left) === null || _a === void 0 ? void 0 : _a.kind) === typescript_1.SyntaxKind.StringLiteral || ((_b = initializer.right) === null || _b === void 0 ? void 0 : _b.kind) === typescript_1.SyntaxKind.StringLiteral) {
                     return [true, false];
+                    // Parenthesized Expression?
                 }
                 else if (((_c = initializer.left) === null || _c === void 0 ? void 0 : _c.kind) === typescript_1.SyntaxKind.ParenthesizedExpression && ((_d = initializer.right) === null || _d === void 0 ? void 0 : _d.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
-                    const resultLeft = isStringConcat(initializer.left.expression);
-                    const resultRight = isStringConcat(initializer.right.expression);
-                    return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]];
+                    return isStringConcat({ left: initializer.left.expression, operatorToken: { kind: typescript_1.SyntaxKind.PlusToken }, right: initializer.right.expression });
                 }
                 else if (((_e = initializer.left) === null || _e === void 0 ? void 0 : _e.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
-                    return isStringConcat(initializer.left.expression);
+                    return isStringConcat({ left: initializer.left.expression, operatorToken: { kind: typescript_1.SyntaxKind.PlusToken }, right: initializer.right });
                 }
                 else if (((_f = initializer.right) === null || _f === void 0 ? void 0 : _f.kind) === typescript_1.SyntaxKind.ParenthesizedExpression) {
-                    return isStringConcat(initializer.right.expression);
+                    return isStringConcat({ left: initializer.left, operatorToken: { kind: typescript_1.SyntaxKind.PlusToken }, right: initializer.right.expression });
+                    // Else.
                 }
                 else {
-                    return [false, true];
+                    const leftSet = getTypeFromInitializer(initializer.left, declarations);
+                    const rightSet = getTypeFromInitializer(initializer.right, declarations);
+                    if (leftSet.has("string") || rightSet.has("string")) {
+                        return [true, false];
+                    }
+                    else {
+                        return [false, false];
+                    }
                 }
             }
             else {
@@ -266,7 +273,7 @@ function parseVariable(parent, node) {
     const isConst = node.declarationList.getChildren().some(o => o.kind === typescript_1.SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            console.log(o);
+            // console.log(o);
             if (TypescriptHeroGuards_1.isCallableDeclaration(parent)) {
                 // const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.variables), node.getStart(), node.getEnd());
                 const declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getTypeTextFromDeclaration(o, []), node.getStart(), node.getEnd());
