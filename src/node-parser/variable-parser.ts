@@ -7,7 +7,7 @@ import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
 import { getNodeType, isNodeExported } from './parse-utilities';
 
-function getBinaryExpressionType(initializer: any): string {
+function getBinaryExpressionType(initializer: any, declarations: Declaration[]): string {
     // Consider operation...
     // number, number => number +, -, *, / , %
     // number => number ++, --
@@ -48,7 +48,7 @@ function getBinaryExpressionType(initializer: any): string {
         return "string";
     }else{
         if(isStringConcatResult[1]){
-            console.log("Maybe StringConcat?");
+            // console.log("Maybe StringConcat?");
         }
         if(initializer && initializer.kind ){
             switch(initializer.kind){
@@ -60,12 +60,21 @@ function getBinaryExpressionType(initializer: any): string {
                     return "boolean";
                 case SyntaxKind.BinaryExpression: // 209
                     switch(initializer.operatorToken.kind){
-                        case SyntaxKind.PlusToken: case SyntaxKind.MinusToken: case SyntaxKind.AsteriskToken: case SyntaxKind.PercentToken:
+                        case SyntaxKind.PlusToken: case SyntaxKind.MinusToken: case SyntaxKind.AsteriskToken: case SyntaxKind.SlashToken: case SyntaxKind.PercentToken: 
                         case SyntaxKind.LessThanLessThanToken: case SyntaxKind.GreaterThanGreaterThanToken: case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
                         case SyntaxKind.AmpersandToken: case SyntaxKind.BarToken:
                             return "number";
                         case SyntaxKind.LessThanToken: case SyntaxKind.LessThanEqualsToken: case SyntaxKind.GreaterThanToken: case SyntaxKind.GreaterThanEqualsToken:
                             return "boolean";
+                        case SyntaxKind.EqualsToken: case SyntaxKind.PlusEqualsToken: case SyntaxKind.MinusEqualsToken: case SyntaxKind.AsteriskEqualsToken: case SyntaxKind.SlashEqualsToken:
+                            const target     = initializer.left;
+                            const identifier = target.escapedText;
+                            const node       = declarations.filter(dec => findNodeByName(dec, identifier));
+                            if (node.length !== 1){
+                                return "Something wrong : Multiple identifier";
+                            }else{
+                                return (node[0] as unknown as { type : string }).type;
+                            }
                     }
                     return "Go deeper";
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
@@ -83,9 +92,10 @@ function findNodeByName(declaration : Declaration, keyword : string): boolean{
     return declaration.name === keyword;
 }
 // function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : ts.NodeArray<ts.VariableDeclaration>): string {
-function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : (Declaration[])): string {
+function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : Declaration[]): string {
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
+    let initializer;
     switch(o.initializer?.kind) {
         case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
             return "number";
@@ -103,13 +113,12 @@ function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : (
                 default:
                     return "Unknown Unary Expression";
             }
+        case SyntaxKind.ParenthesizedExpression: // 200
+            initializer = (o.initializer as unknown as  { expression : any });  
+            return getBinaryExpressionType(initializer.expression, declarations);
         case SyntaxKind.BinaryExpression: // 209
-            const initializer : {left : any, right: any, operatorToken : any } = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  
-            if(initializer.left && initializer.operatorToken){
-                return getBinaryExpressionType(initializer);
-            }else{
-                return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
-            }
+            initializer = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  
+            return getBinaryExpressionType(initializer, declarations);
         case SyntaxKind.ArrowFunction: // 202
             const parameters = (o.initializer as unknown as {parameters : any}).parameters;
             let nodeType = "";
@@ -127,7 +136,6 @@ function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : (
             }else{
                 return (node[0] as unknown as { type : string }).type;
             }
-            // Should find the identifier's type
         default:
             // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
