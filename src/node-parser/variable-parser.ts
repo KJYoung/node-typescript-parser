@@ -1,4 +1,5 @@
 import { SyntaxKind, VariableStatement } from 'typescript';
+import ts = require('typescript');
 
 import { CallableDeclaration } from '../declarations/Declaration';
 import { VariableDeclaration } from '../declarations/VariableDeclaration';
@@ -78,6 +79,48 @@ function getBinaryExpressionType(initializer: any): string {
     }
 }
 
+function getTypeTextFromDeclaration(o : ts.VariableDeclaration): string {
+    // Rule 1 : initializer.kind == Basic Literal?
+    // Rule 2 : initializer has operatorToken?
+    switch(o.initializer?.kind) {
+        case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
+            return "number";
+        case SyntaxKind.StringLiteral: // 10
+            return "string";
+        case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
+            return "boolean";
+        case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
+            switch(( o.initializer as unknown as { operator : any}).operator){
+                case SyntaxKind.ExclamationToken:
+                    return "boolean";
+                case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
+                case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
+                    return "number";
+                default:
+                    return "Unknown Unary Expression";
+            }
+        case SyntaxKind.BinaryExpression: // 209
+            const initializer : {left : any, right: any, operatorToken : any } = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  
+            if(initializer.left && initializer.operatorToken){
+                return getBinaryExpressionType(initializer);
+            }else{
+                return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
+            }
+        case SyntaxKind.ArrowFunction: // 202
+            const parameters = (o.initializer as unknown as {parameters : any}).parameters;
+            let nodeType = "";
+            parameters.forEach((param : any) => {
+                nodeType += getNodeType(param.type)
+            });
+            // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
+            nodeType += " => unknown";
+            return nodeType;
+        default:
+            // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
+            return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
+    }
+}
+
 /**
  * Parse a variable. Information such as "is the variable const" are calculated here.
  *
@@ -90,57 +133,7 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
             console.log(o);
-            let declaration; // = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), ${the type string!}, node.getStart(), node.getEnd());
-
-            // Rule 1 : initializer.kind == Basic Literal?
-            // Rule 2 : initializer has operatorToken?
-            switch(o.initializer?.kind) {
-                case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
-                    break;
-                case SyntaxKind.StringLiteral: // 10
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "string", node.getStart(), node.getEnd());
-                    break;
-                case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "boolean", node.getStart(), node.getEnd());
-                    break;
-                case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
-                    switch(( o.initializer as unknown as { operator : any}).operator){
-                        case SyntaxKind.ExclamationToken:
-                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "boolean", node.getStart(), node.getEnd());
-                            break;
-                        case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
-                        case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
-                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "number", node.getStart(), node.getEnd());
-                            break;
-                        default:
-                            declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), "Unknown Unary Expression", node.getStart(), node.getEnd());
-                            break;
-                    }
-                    break;
-                case SyntaxKind.BinaryExpression: // 209
-                    const initializer : {left : any, right: any, operatorToken : any } = (o.initializer as unknown as  {left : any, right : any, operatorToken : any });  
-                    if(initializer.left && initializer.operatorToken){
-                        declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getBinaryExpressionType(initializer), node.getStart(), node.getEnd());
-                    }else{
-                        declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type), node.getStart(), node.getEnd());
-                    }
-                    break;
-                case SyntaxKind.ArrowFunction: // 202
-                    const parameters = (o.initializer as unknown as {parameters : any}).parameters;
-                    let nodeType = "";
-                    parameters.forEach((param : any) => {
-                        nodeType += getNodeType(param.type)
-                    });
-                    // nodeType += getNodeType((o.initializer as unknown as {body : any}).body.type )
-                    nodeType += " => unknown";
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), nodeType, node.getStart(), node.getEnd());
-                    break;
-                default:
-                    // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
-                    declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type), node.getStart(), node.getEnd());
-                    break;
-            }
+            const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o), node.getStart(), node.getEnd());
             if (isCallableDeclaration(parent)) {
                 parent.variables.push(declaration);
             } else {
