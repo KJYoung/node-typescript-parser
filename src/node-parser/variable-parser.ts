@@ -85,8 +85,10 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                             const target     = initializer.left;
                             const identifier = target.escapedText;
                             return getTypeOfVar(identifier, declarations);
+                        case SyntaxKind.InstanceOfKeyword:
+                            return "boolean";
                     }
-                    return "Go deeper";
+                    return `Go deeper ${initializer.operatorToken.kind}`;
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
                     return "number";
                 default:
