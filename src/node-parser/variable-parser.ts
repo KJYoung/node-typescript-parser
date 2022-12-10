@@ -7,6 +7,11 @@ import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
 import { getNodeType, isNodeExported } from './parse-utilities';
 
+function typeSet2Str(typeSet : Set<string>) :string {
+    let typeStr = "";
+    typeSet.forEach(t => typeStr += (" | " + t) );
+    return typeStr.slice(3);
+}   
 
 function getTypeOfVar(name : string, declarations: Declaration[]): string {
     function findNodeByName(declaration : Declaration, keyword : string): boolean{
@@ -152,11 +157,15 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
         typeSet.add("Undefined INIT");
         return typeSet;
     }
-    switch(init?.kind) {
-        case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
+    if(!(init.kind)){
+        typeSet.add("Unknown KIND");
+        return typeSet;
+    }
+    switch(init.kind) {
+        case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: case SyntaxKind.NumberKeyword: // 8, 9
             typeSet.add("number");
             return typeSet;
-        case SyntaxKind.StringLiteral: // 10
+        case SyntaxKind.StringLiteral: case SyntaxKind.StringKeyword: // 10
             typeSet.add("string");
             return typeSet;
         case SyntaxKind.Identifier: // 75
@@ -166,22 +175,28 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
         case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
             typeSet.add("boolean");
             return typeSet;
-        case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
-            switch(( init as unknown as { operator : any}).operator){
-                case SyntaxKind.ExclamationToken:
-                    typeSet.add("boolean");
-                    return typeSet;
-                case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
-                case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
-                    typeSet.add("number");
-                    return typeSet;
-                default:
-                    typeSet.add("Unknown UnaryOp");
-                    return typeSet;
-            }
+        case SyntaxKind.ObjectLiteralExpression: // 193
+            const objProperties = (init as unknown as { properties : { name : any, initializer : any}[] }).properties;
+            let objTypeStr = "{ ";
+            objProperties.forEach(e => {
+                objTypeStr += ( e.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(e.initializer, declarations)) + ", ");
+            });
+            objTypeStr = objTypeStr.slice(0, -2) + " }";
+            typeSet.add(objTypeStr);
+            return typeSet;
         case SyntaxKind.ParenthesizedExpression: // 200
             initializer = (init as unknown as  { expression : any });  
             return getTypeFromInitializer(initializer.expression, declarations);
+        case SyntaxKind.FunctionExpression: // 201
+            const funcParameters = (init as unknown as { parameters : { name : any, initializer : any, type: any}[] }).parameters;
+            const funcType       = (init as unknown as { type : { kind : number} }).type?.kind; // if there are explicit type annotation.
+            let funcParamStr = "(";
+            funcParameters.forEach(fparam => {
+                funcParamStr += ( fparam.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(fparam.type, declarations)) + ", ");
+            })
+            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer({kind : funcType} as ts.Expression, declarations));
+            typeSet.add(funcParamStr);
+            return typeSet;
         case SyntaxKind.ArrowFunction: // 202
             const parameters = (init as unknown as {parameters : any}).parameters;
             let nodeType = "";
@@ -195,6 +210,19 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
         case SyntaxKind.TypeOfExpression: // 204
             typeSet.add("string");
             return typeSet;
+        case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression: // 207, 208
+            switch(( init as unknown as { operator : any}).operator){
+                case SyntaxKind.ExclamationToken:
+                    typeSet.add("boolean");
+                    return typeSet;
+                case SyntaxKind.PlusToken: case SyntaxKind.MinusToken:
+                case SyntaxKind.PlusPlusToken: case SyntaxKind.MinusMinusToken:
+                    typeSet.add("number");
+                    return typeSet;
+                default:
+                    typeSet.add("Unknown UnaryOp");
+                    return typeSet;
+            }
         case SyntaxKind.BinaryExpression: // 209
             initializer = (init as unknown as  {left : any, right : any, operatorToken : any });
             const binaryTypeSet = getBinaryExpressionType(initializer, declarations);
@@ -220,9 +248,7 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                 eTypeSet.forEach(ee => typeSet.add(ee));
             });
             
-            let typeStr = "";
-            typeSet.forEach(t => typeStr += (" | " + t) );
-            typeStr = typeStr.slice(3);
+            let typeStr = typeSet2Str(typeSet);
             if(typeSet.size === 1){
                 typeSet.clear();
                 typeSet.add(typeStr + "[]");
@@ -243,9 +269,7 @@ function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : D
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
     const typeSet = getTypeFromInitializer(o.initializer, declarations);
-    let typeStr = "";
-    typeSet.forEach(t => typeStr += (" | " + t) );
-    return typeStr.slice(3);
+    return typeSet2Str(typeSet);
 }
 
 /**

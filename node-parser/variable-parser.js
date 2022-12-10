@@ -5,6 +5,11 @@ const typescript_1 = require("typescript");
 const VariableDeclaration_1 = require("../declarations/VariableDeclaration");
 const TypescriptHeroGuards_1 = require("../type-guards/TypescriptHeroGuards");
 const parse_utilities_1 = require("./parse-utilities");
+function typeSet2Str(typeSet) {
+    let typeStr = "";
+    typeSet.forEach(t => typeStr += (" | " + t));
+    return typeStr.slice(3);
+}
 function getTypeOfVar(name, declarations) {
     function findNodeByName(declaration, keyword) {
         return declaration.name === keyword;
@@ -173,18 +178,25 @@ function getBinaryExpressionType(initializer, declarations) {
     }
 }
 function getTypeFromInitializer(init, declarations) {
+    var _a;
     const typeSet = new Set();
     let initializer;
     if (!init) {
         typeSet.add("Undefined INIT");
         return typeSet;
     }
-    switch (init === null || init === void 0 ? void 0 : init.kind) {
+    if (!(init.kind)) {
+        typeSet.add("Unknown KIND");
+        return typeSet;
+    }
+    switch (init.kind) {
         case typescript_1.SyntaxKind.NumericLiteral:
-        case typescript_1.SyntaxKind.BigIntLiteral: // 8, 9
+        case typescript_1.SyntaxKind.BigIntLiteral:
+        case typescript_1.SyntaxKind.NumberKeyword: // 8, 9
             typeSet.add("number");
             return typeSet;
-        case typescript_1.SyntaxKind.StringLiteral: // 10
+        case typescript_1.SyntaxKind.StringLiteral:
+        case typescript_1.SyntaxKind.StringKeyword: // 10
             typeSet.add("string");
             return typeSet;
         case typescript_1.SyntaxKind.Identifier: // 75
@@ -195,8 +207,43 @@ function getTypeFromInitializer(init, declarations) {
         case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
             typeSet.add("boolean");
             return typeSet;
+        case typescript_1.SyntaxKind.ObjectLiteralExpression: // 193
+            const objProperties = init.properties;
+            let objTypeStr = "{ ";
+            objProperties.forEach(e => {
+                objTypeStr += (e.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(e.initializer, declarations)) + ", ");
+            });
+            objTypeStr = objTypeStr.slice(0, -2) + " }";
+            typeSet.add(objTypeStr);
+            return typeSet;
+        case typescript_1.SyntaxKind.ParenthesizedExpression: // 200
+            initializer = init;
+            return getTypeFromInitializer(initializer.expression, declarations);
+        case typescript_1.SyntaxKind.FunctionExpression: // 201
+            const funcParameters = init.parameters;
+            const funcType = (_a = init.type) === null || _a === void 0 ? void 0 : _a.kind; // if there are explicit type annotation.
+            let funcParamStr = "(";
+            funcParameters.forEach(fparam => {
+                funcParamStr += (fparam.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(fparam.type, declarations)) + ", ");
+            });
+            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer({ kind: funcType }, declarations));
+            typeSet.add(funcParamStr);
+            return typeSet;
+        case typescript_1.SyntaxKind.ArrowFunction: // 202
+            const parameters = init.parameters;
+            let nodeType = "";
+            parameters.forEach((param) => {
+                nodeType += parse_utilities_1.getNodeType(param.type);
+            });
+            // nodeType += getNodeType((init as unknown as {body : any}).body.type )
+            nodeType += " => unknown";
+            typeSet.add(nodeType);
+            return typeSet;
+        case typescript_1.SyntaxKind.TypeOfExpression: // 204
+            typeSet.add("string");
+            return typeSet;
         case typescript_1.SyntaxKind.PrefixUnaryExpression:
-        case typescript_1.SyntaxKind.PostfixUnaryExpression:
+        case typescript_1.SyntaxKind.PostfixUnaryExpression: // 207, 208
             switch (init.operator) {
                 case typescript_1.SyntaxKind.ExclamationToken:
                     typeSet.add("boolean");
@@ -211,22 +258,6 @@ function getTypeFromInitializer(init, declarations) {
                     typeSet.add("Unknown UnaryOp");
                     return typeSet;
             }
-        case typescript_1.SyntaxKind.ParenthesizedExpression: // 200
-            initializer = init;
-            return getTypeFromInitializer(initializer.expression, declarations);
-        case typescript_1.SyntaxKind.ArrowFunction: // 202
-            const parameters = init.parameters;
-            let nodeType = "";
-            parameters.forEach((param) => {
-                nodeType += parse_utilities_1.getNodeType(param.type);
-            });
-            // nodeType += getNodeType((init as unknown as {body : any}).body.type )
-            nodeType += " => unknown";
-            typeSet.add(nodeType);
-            return typeSet;
-        case typescript_1.SyntaxKind.TypeOfExpression: // 204
-            typeSet.add("string");
-            return typeSet;
         case typescript_1.SyntaxKind.BinaryExpression: // 209
             initializer = init;
             const binaryTypeSet = getBinaryExpressionType(initializer, declarations);
@@ -253,9 +284,7 @@ function getTypeFromInitializer(init, declarations) {
                 const eTypeSet = getTypeFromInitializer(e, declarations);
                 eTypeSet.forEach(ee => typeSet.add(ee));
             });
-            let typeStr = "";
-            typeSet.forEach(t => typeStr += (" | " + t));
-            typeStr = typeStr.slice(3);
+            let typeStr = typeSet2Str(typeSet);
             if (typeSet.size === 1) {
                 typeSet.clear();
                 typeSet.add(typeStr + "[]");
@@ -276,9 +305,7 @@ function getTypeTextFromDeclaration(o, declarations) {
     // Rule 1 : initializer.kind == Basic Literal?
     // Rule 2 : initializer has operatorToken?
     const typeSet = getTypeFromInitializer(o.initializer, declarations);
-    let typeStr = "";
-    typeSet.forEach(t => typeStr += (" | " + t));
-    return typeStr.slice(3);
+    return typeSet2Str(typeSet);
 }
 /**
  * Parse a variable. Information such as "is the variable const" are calculated here.
