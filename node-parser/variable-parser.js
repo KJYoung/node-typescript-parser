@@ -5,32 +5,74 @@ const typescript_1 = require("typescript");
 const VariableDeclaration_1 = require("../declarations/VariableDeclaration");
 const TypescriptHeroGuards_1 = require("../type-guards/TypescriptHeroGuards");
 const parse_utilities_1 = require("./parse-utilities");
-function getExpressionType(left) {
+function getExpressionType(initializer) {
     // Consider operation...
-    // +, -, *, / , %, ++, --
-    // >, <, >=, <=, ==, !=
-    // &&, ||, !
+    // number, number => number +, -, *, / , %
+    // number => number ++, --
+    // number, number => boolean >, <, >=, <=, ==, !=
+    // (hard. true && 3 => number, false && 4 => boolean : we have to know the value) &&, ||, !
     // &, |, ^, ~, <<, >>, >>>
     // =, +=, -=, *=, /=
     // unary -, string concat +, conditional 'A ? B : C', typeof, instanceof
-    if (left && left.kind) {
-        switch (left.kind) {
-            case 8:
-            case 9: // NumericLiteral, BigIntLiteral
-                return "number";
-            case 10: // StringLiteral
-                return "string";
-            case 91:
-            case 106: // IfKeyword(false), VoidKeyword(true)
-                return "boolean";
-            case 209:
-                return getExpressionType(left.left);
-            default:
-                return `Complicated Expression ${left.kind}`;
+    // Should check string concat first, then just evaluate except string concat.
+    const isStringConcat = (initializer) => {
+        var _a, _b;
+        if (initializer && initializer.operatorToken) {
+            if (initializer.operatorToken.kind === typescript_1.SyntaxKind.PlusToken) {
+                // String?
+                if (((_a = initializer.left) === null || _a === void 0 ? void 0 : _a.kind) === typescript_1.SyntaxKind.StringLiteral && ((_b = initializer.right) === null || _b === void 0 ? void 0 : _b.kind) === typescript_1.SyntaxKind.StringLiteral) {
+                    return [true, false];
+                }
+                else {
+                    return [false, true];
+                }
+            }
+            else {
+                const resultLeft = isStringConcat(initializer.left);
+                const resultRight = isStringConcat(initializer.right);
+                return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]];
+            }
         }
+        else {
+            return [false, false];
+        }
+    };
+    const isStringConcatResult = isStringConcat(initializer);
+    if (isStringConcatResult[0]) {
+        return "string";
     }
     else {
-        return `Complicated Expression`;
+        if (initializer && initializer.kind) {
+            switch (initializer.kind) {
+                case typescript_1.SyntaxKind.NumericLiteral:
+                case typescript_1.SyntaxKind.BigIntLiteral: // 8, 9
+                    return "number";
+                case typescript_1.SyntaxKind.StringLiteral: // 10
+                    return "string";
+                case typescript_1.SyntaxKind.FalseKeyword:
+                case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
+                    return "boolean";
+                case typescript_1.SyntaxKind.BinaryExpression: // 209
+                    switch (initializer.operatorToken.kind) {
+                        case typescript_1.SyntaxKind.PlusToken:
+                        case typescript_1.SyntaxKind.MinusToken:
+                        case typescript_1.SyntaxKind.AsteriskToken:
+                        case typescript_1.SyntaxKind.PercentToken:
+                            return "number";
+                        case typescript_1.SyntaxKind.LessThanToken:
+                        case typescript_1.SyntaxKind.LessThanEqualsToken:
+                        case typescript_1.SyntaxKind.GreaterThanToken:
+                        case typescript_1.SyntaxKind.GreaterThanEqualsToken:
+                            return "boolean";
+                    }
+                    return "Go deeper";
+                default:
+                    return `Complicated Expression ${initializer.kind}`;
+            }
+        }
+        else {
+            return `Complicated Expression`;
+        }
     }
 }
 /**
@@ -50,27 +92,27 @@ function parseVariable(parent, node) {
             // Rule 1 : initializer.kind == Basic Literal?
             // Rule 2 : initializer has operatorToken?
             switch ((_a = o.initializer) === null || _a === void 0 ? void 0 : _a.kind) {
-                case 8:
-                case 9: // NumericLiteral, BigIntLiteral
+                case typescript_1.SyntaxKind.NumericLiteral:
+                case typescript_1.SyntaxKind.BigIntLiteral: // 8, 9
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "number", node.getStart(), node.getEnd());
                     break;
-                case 10: // StringLiteral
+                case typescript_1.SyntaxKind.StringLiteral: // 10
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "string", node.getStart(), node.getEnd());
                     break;
-                case 91:
-                case 106: // IfKeyword(false), VoidKeyword(true)
+                case typescript_1.SyntaxKind.FalseKeyword:
+                case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
                     declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), "boolean", node.getStart(), node.getEnd());
                     break;
-                case 209: // ClassExpression, Follow left operand's type
+                case typescript_1.SyntaxKind.BinaryExpression: // 209
                     const initializer = o.initializer;
                     if (initializer.left && initializer.operatorToken) {
-                        declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getExpressionType(initializer.left), node.getStart(), node.getEnd());
+                        declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), getExpressionType(initializer), node.getStart(), node.getEnd());
                     }
                     else {
                         declaration = new VariableDeclaration_1.VariableDeclaration(o.name.getText(), isConst, parse_utilities_1.isNodeExported(node), parse_utilities_1.getNodeType(o.type ? o.type : (_b = o.initializer) === null || _b === void 0 ? void 0 : _b.type), node.getStart(), node.getEnd());
                     }
                     break;
-                case 202: // PrefixUnaryExpression
+                case typescript_1.SyntaxKind.ArrowFunction: // 202
                     const parameters = o.initializer.parameters;
                     let nodeType = "";
                     parameters.forEach((param) => {
