@@ -7,6 +7,19 @@ import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
 import { getNodeType, isNodeExported } from './parse-utilities';
 
+
+function getTypeOfVar(name : string, declarations: Declaration[]): string {
+    function findNodeByName(declaration : Declaration, keyword : string): boolean{
+        return declaration.name === keyword;
+    }
+    const node = declarations.filter(dec => findNodeByName(dec, name));
+    if (node.length !== 1){
+        return "Something wrong : Multiple identifier";
+    }else{
+        return (node[0] as unknown as { type : string }).type;
+    }
+}
+
 function getBinaryExpressionType(initializer: any, declarations: Declaration[]): string {
     // Consider operation...
     // number, number => number +, -, *, / , %
@@ -69,12 +82,7 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                         case SyntaxKind.EqualsToken: case SyntaxKind.PlusEqualsToken: case SyntaxKind.MinusEqualsToken: case SyntaxKind.AsteriskEqualsToken: case SyntaxKind.SlashEqualsToken:
                             const target     = initializer.left;
                             const identifier = target.escapedText;
-                            const node       = declarations.filter(dec => findNodeByName(dec, identifier));
-                            if (node.length !== 1){
-                                return "Something wrong : Multiple identifier";
-                            }else{
-                                return (node[0] as unknown as { type : string }).type;
-                            }
+                            return getTypeOfVar(identifier, declarations);
                     }
                     return "Go deeper";
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
@@ -88,9 +96,7 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
     }
 }
 
-function findNodeByName(declaration : Declaration, keyword : string): boolean{
-    return declaration.name === keyword;
-}
+
 // function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : ts.NodeArray<ts.VariableDeclaration>): string {
 function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : Declaration[]): string {
     // Rule 1 : initializer.kind == Basic Literal?
@@ -130,12 +136,7 @@ function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : D
             return nodeType;
         case SyntaxKind.Identifier: // 75
             const identifier = (o.initializer as unknown as {escapedText : string}).escapedText;
-            const node       = declarations.filter(dec => findNodeByName(dec, identifier));
-            if (node.length !== 1){
-                return "Something wrong : Multiple identifier";
-            }else{
-                return (node[0] as unknown as { type : string }).type;
-            }
+            return getTypeOfVar(identifier, declarations);
         default:
             // console.log(`o.initializer.kind : ${o.initializer?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             return getNodeType(o.type ? o.type : (o.initializer as unknown as { type : any })?.type) || "Undefined";
