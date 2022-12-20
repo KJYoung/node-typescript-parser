@@ -162,17 +162,17 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
         return typeSet;
     }
     switch(init.kind) {
-        case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: case SyntaxKind.NumberKeyword: // 8, 9
+        case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: case SyntaxKind.NumberKeyword: // 8, 9, 140
             typeSet.add("number");
             return typeSet;
-        case SyntaxKind.StringLiteral: case SyntaxKind.StringKeyword: // 10
+        case SyntaxKind.StringLiteral: case SyntaxKind.StringKeyword: // 10, 143
             typeSet.add("string");
             return typeSet;
         case SyntaxKind.Identifier: // 75
             const identifier = (init as unknown as {escapedText : string}).escapedText;
             typeSet.add(getTypeOfVar(identifier, declarations));
             return typeSet;
-        case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
+        case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: case SyntaxKind.BooleanKeyword: // 91, 106, 128
             typeSet.add("boolean");
             return typeSet;
         case SyntaxKind.TypeReference: // 169
@@ -190,6 +190,11 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                 }
                 typeSet.add(typeRefStr);
             }
+            return typeSet;
+        case SyntaxKind.ArrayType: // 174
+            const arrayType = (init as unknown as {elementType : any}).elementType;
+            let typeArrayStr = typeSet2Str(getTypeFromInitializer(arrayType, declarations)) + "[]";
+            typeSet.add(typeArrayStr);
             return typeSet;
         case SyntaxKind.UnionType: // 178
             const unionTypes = (init as unknown as { types : any[]}).types;
@@ -243,7 +248,6 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             parameters.forEach((param : any) => {
                 nodeType += getNodeType(param.type)
             });
-            // nodeType += getNodeType((init as unknown as {body : any}).body.type )
             nodeType += " => unknown";
             typeSet.add(nodeType);
             return typeSet;
@@ -282,7 +286,6 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                 return typeSet;
             }
         default:
-            // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             typeSet.add(`Undefined ${init?.kind}`);
             return typeSet;
     }

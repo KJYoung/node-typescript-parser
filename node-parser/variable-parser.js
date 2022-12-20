@@ -191,11 +191,11 @@ function getTypeFromInitializer(init, declarations) {
     switch (init.kind) {
         case typescript_1.SyntaxKind.NumericLiteral:
         case typescript_1.SyntaxKind.BigIntLiteral:
-        case typescript_1.SyntaxKind.NumberKeyword: // 8, 9
+        case typescript_1.SyntaxKind.NumberKeyword: // 8, 9, 140
             typeSet.add("number");
             return typeSet;
         case typescript_1.SyntaxKind.StringLiteral:
-        case typescript_1.SyntaxKind.StringKeyword: // 10
+        case typescript_1.SyntaxKind.StringKeyword: // 10, 143
             typeSet.add("string");
             return typeSet;
         case typescript_1.SyntaxKind.Identifier: // 75
@@ -203,7 +203,8 @@ function getTypeFromInitializer(init, declarations) {
             typeSet.add(getTypeOfVar(identifier, declarations));
             return typeSet;
         case typescript_1.SyntaxKind.FalseKeyword:
-        case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
+        case typescript_1.SyntaxKind.TrueKeyword:
+        case typescript_1.SyntaxKind.BooleanKeyword: // 91, 106, 128
             typeSet.add("boolean");
             return typeSet;
         case typescript_1.SyntaxKind.TypeReference: // 169
@@ -221,6 +222,11 @@ function getTypeFromInitializer(init, declarations) {
                 }
                 typeSet.add(typeRefStr);
             }
+            return typeSet;
+        case typescript_1.SyntaxKind.ArrayType: // 174
+            const arrayType = init.elementType;
+            let typeArrayStr = typeSet2Str(getTypeFromInitializer(arrayType, declarations)) + "[]";
+            typeSet.add(typeArrayStr);
             return typeSet;
         case typescript_1.SyntaxKind.UnionType: // 178
             const unionTypes = init.types;
@@ -274,7 +280,6 @@ function getTypeFromInitializer(init, declarations) {
             parameters.forEach((param) => {
                 nodeType += parse_utilities_1.getNodeType(param.type);
             });
-            // nodeType += getNodeType((init as unknown as {body : any}).body.type )
             nodeType += " => unknown";
             typeSet.add(nodeType);
             return typeSet;
@@ -318,7 +323,6 @@ function getTypeFromInitializer(init, declarations) {
                 return typeSet;
             }
         default:
-            // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             typeSet.add(`Undefined ${init === null || init === void 0 ? void 0 : init.kind}`);
             return typeSet;
     }
