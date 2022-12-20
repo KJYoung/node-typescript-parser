@@ -178,7 +178,6 @@ function getBinaryExpressionType(initializer, declarations) {
     }
 }
 function getTypeFromInitializer(init, declarations) {
-    var _a;
     const typeSet = new Set();
     let initializer;
     if (!init) {
@@ -207,6 +206,46 @@ function getTypeFromInitializer(init, declarations) {
         case typescript_1.SyntaxKind.TrueKeyword: // 91, 106
             typeSet.add("boolean");
             return typeSet;
+        case typescript_1.SyntaxKind.TypeReference: // 169
+            const typeRefTypeName = init.typeName;
+            const typeRefTypeArgs = init.typeArguments;
+            let typeRefStr = "";
+            if (typeRefTypeName) {
+                typeRefStr += typeRefTypeName.escapedText;
+                if (typeRefTypeArgs) {
+                    typeRefStr += "<";
+                    typeRefTypeArgs.forEach(typeRefType => {
+                        typeRefStr += typeSet2Str(getTypeFromInitializer(typeRefType, declarations)) + ",";
+                    });
+                    typeRefStr = typeRefStr.slice(0, -1) + ">";
+                }
+                typeSet.add(typeRefStr);
+            }
+            return typeSet;
+        case typescript_1.SyntaxKind.UnionType: // 178
+            const unionTypes = init.types;
+            let typeUnionStr = "(";
+            unionTypes.forEach(unT => {
+                typeUnionStr += typeSet2Str(getTypeFromInitializer(unT, declarations)) + "|";
+            });
+            typeSet.add(typeUnionStr.slice(0, -1) + ")");
+            return typeSet;
+        case typescript_1.SyntaxKind.ArrayLiteralExpression: // 192
+            const elements = init.elements;
+            elements.forEach(e => {
+                const eTypeSet = getTypeFromInitializer(e, declarations);
+                eTypeSet.forEach(ee => typeSet.add(ee));
+            });
+            let typeStr = typeSet2Str(typeSet);
+            if (typeSet.size === 1) {
+                typeSet.clear();
+                typeSet.add(typeStr + "[]");
+            }
+            else {
+                typeSet.clear();
+                typeSet.add("(" + typeStr + ")[]");
+            }
+            return typeSet;
         case typescript_1.SyntaxKind.ObjectLiteralExpression: // 193
             const objProperties = init.properties;
             let objTypeStr = "{ ";
@@ -221,12 +260,12 @@ function getTypeFromInitializer(init, declarations) {
             return getTypeFromInitializer(initializer.expression, declarations);
         case typescript_1.SyntaxKind.FunctionExpression: // 201
             const funcParameters = init.parameters;
-            const funcType = (_a = init.type) === null || _a === void 0 ? void 0 : _a.kind; // if there are explicit type annotation.
+            const funcType = init.type; // if there are explicit type annotation.
             let funcParamStr = "(";
             funcParameters.forEach(fparam => {
                 funcParamStr += (fparam.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(fparam.type, declarations)) + ", ");
             });
-            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer({ kind: funcType }, declarations));
+            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer(funcType, declarations));
             typeSet.add(funcParamStr);
             return typeSet;
         case typescript_1.SyntaxKind.ArrowFunction: // 202
@@ -278,22 +317,6 @@ function getTypeFromInitializer(init, declarations) {
                 falseTypeSet.forEach(t => typeSet.add(t));
                 return typeSet;
             }
-        case typescript_1.SyntaxKind.ArrayLiteralExpression: // 192
-            const elements = init.elements;
-            elements.forEach(e => {
-                const eTypeSet = getTypeFromInitializer(e, declarations);
-                eTypeSet.forEach(ee => typeSet.add(ee));
-            });
-            let typeStr = typeSet2Str(typeSet);
-            if (typeSet.size === 1) {
-                typeSet.clear();
-                typeSet.add(typeStr + "[]");
-            }
-            else {
-                typeSet.clear();
-                typeSet.add("(" + typeStr + ")[]");
-            }
-            return typeSet;
         default:
             // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             typeSet.add(`Undefined ${init === null || init === void 0 ? void 0 : init.kind}`);

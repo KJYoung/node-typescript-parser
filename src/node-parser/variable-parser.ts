@@ -175,6 +175,46 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
         case SyntaxKind.FalseKeyword: case SyntaxKind.TrueKeyword: // 91, 106
             typeSet.add("boolean");
             return typeSet;
+        case SyntaxKind.TypeReference: // 169
+            const typeRefTypeName = (init as unknown as { typeName : any }).typeName;
+            const typeRefTypeArgs = (init as unknown as { typeArguments : any[]}).typeArguments;
+            let typeRefStr = "";
+            if(typeRefTypeName){
+                typeRefStr += typeRefTypeName.escapedText;
+                if(typeRefTypeArgs){
+                    typeRefStr += "<";
+                    typeRefTypeArgs.forEach(typeRefType => {
+                        typeRefStr += typeSet2Str(getTypeFromInitializer(typeRefType, declarations)) + ",";
+                    });
+                    typeRefStr = typeRefStr.slice(0, -1) + ">";
+                }
+                typeSet.add(typeRefStr);
+            }
+            return typeSet;
+        case SyntaxKind.UnionType: // 178
+            const unionTypes = (init as unknown as { types : any[]}).types;
+            let typeUnionStr = "(";
+            unionTypes.forEach(unT => {
+                typeUnionStr += typeSet2Str(getTypeFromInitializer(unT, declarations)) + "|";
+            });
+            typeSet.add(typeUnionStr.slice(0, -1) + ")");
+            return typeSet;
+        case SyntaxKind.ArrayLiteralExpression: // 192
+            const elements = (init as unknown as { elements : any[] }).elements;
+            elements.forEach(e => {
+                const eTypeSet = getTypeFromInitializer(e, declarations);
+                eTypeSet.forEach(ee => typeSet.add(ee));
+            });
+            
+            let typeStr = typeSet2Str(typeSet);
+            if(typeSet.size === 1){
+                typeSet.clear();
+                typeSet.add(typeStr + "[]");
+            }else{
+                typeSet.clear();
+                typeSet.add("(" + typeStr + ")[]");
+            }
+            return typeSet;
         case SyntaxKind.ObjectLiteralExpression: // 193
             const objProperties = (init as unknown as { properties : { name : any, initializer : any}[] }).properties;
             let objTypeStr = "{ ";
@@ -189,12 +229,12 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             return getTypeFromInitializer(initializer.expression, declarations);
         case SyntaxKind.FunctionExpression: // 201
             const funcParameters = (init as unknown as { parameters : { name : any, initializer : any, type: any}[] }).parameters;
-            const funcType       = (init as unknown as { type : { kind : number} }).type?.kind; // if there are explicit type annotation.
+            const funcType       = (init as unknown as { type : { kind : number} }).type; // if there are explicit type annotation.
             let funcParamStr = "(";
             funcParameters.forEach(fparam => {
                 funcParamStr += ( fparam.name.escapedText + ":" + typeSet2Str(getTypeFromInitializer(fparam.type, declarations)) + ", ");
             })
-            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer({kind : funcType} as ts.Expression, declarations));
+            funcParamStr = (funcParamStr === "(" ? funcParamStr : funcParamStr.slice(0, -2)) + ") => " + typeSet2Str(getTypeFromInitializer(funcType as ts.Expression, declarations));
             typeSet.add(funcParamStr);
             return typeSet;
         case SyntaxKind.ArrowFunction: // 202
@@ -241,22 +281,6 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                 falseTypeSet.forEach(t => typeSet.add(t));
                 return typeSet;
             }
-        case SyntaxKind.ArrayLiteralExpression: // 192
-            const elements = (init as unknown as { elements : any[] }).elements;
-            elements.forEach(e => {
-                const eTypeSet = getTypeFromInitializer(e, declarations);
-                eTypeSet.forEach(ee => typeSet.add(ee));
-            });
-            
-            let typeStr = typeSet2Str(typeSet);
-            if(typeSet.size === 1){
-                typeSet.clear();
-                typeSet.add(typeStr + "[]");
-            }else{
-                typeSet.clear();
-                typeSet.add("(" + typeStr + ")[]");
-            }
-            return typeSet;
         default:
             // console.log(`init.kind : ${init?.kind} | ${(o.name as unknown as {escapedText : string}).escapedText}`);
             typeSet.add(`Undefined ${init?.kind}`);
