@@ -76,6 +76,7 @@ export class TypescriptParser {
      * @memberof TsResourceParser
      */
     public async parseFile(filePath: string, rootPath: string): Promise<File> {
+        // console.log('parseFile Called');
         const parse = await this.parseFiles([filePath], rootPath);
         return parse[0];
     }

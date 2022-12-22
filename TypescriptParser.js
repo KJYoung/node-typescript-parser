@@ -53,6 +53,7 @@ class TypescriptParser {
      */
     parseFile(filePath, rootPath) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            // console.log('parseFile Called');
             const parse = yield this.parseFiles([filePath], rootPath);
             return parse[0];
         });

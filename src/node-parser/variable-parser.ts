@@ -17,6 +17,13 @@ const TYPE_NUMBER = "number";
 const TYPE_STRING = "string";
 const TYPE_BOOLEAN = "boolean";
 // TYPE string with $ means some error.
+const TYPE_E_MULTIPLE = "$Wrong";
+const TYPE_E_IMPORT = "$Imported";
+const TYPE_E_EXPDEEP = "$Deep";
+const TYPE_E_COMPEXP = "$CompExp";
+const TYPE_E_COMPUNARY = "$UnaryOp";
+const TYPE_E_UNDEFINED = "$UndefinedINIT";
+const TYPE_E_UNCHECKED = "$NotChecked";
 
 function getTypeOfVar(name : string, declarations: Declaration[]): string {
     function findNodeByName(declaration : Declaration, keyword : string): boolean{
@@ -24,9 +31,9 @@ function getTypeOfVar(name : string, declarations: Declaration[]): string {
     }
     const node = declarations.filter(dec => findNodeByName(dec, name));
     if (node.length > 1){
-        return "$Wrong"; // Maybe Multiple identifier
+        return TYPE_E_MULTIPLE; // Maybe Multiple identifier
     }else if (node.length == 0){
-        return "$Imported"; // Maybe Imported from other TypeScript file.
+        return TYPE_E_IMPORT; // Maybe Imported from other TypeScript file.
     }else{
         return (node[0] as unknown as { type : string }).type;
     }
@@ -139,17 +146,17 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                                 return typeSet;
                             }
                     }
-                    typeSet.add(`Deep${initializer.operatorToken.kind}`); // Should Go Deeper? OR Unchecked.
+                    typeSet.add(`${TYPE_E_EXPDEEP}${initializer.operatorToken.kind}`); // Should Go Deeper? OR Unchecked.
                     return typeSet;
                 case SyntaxKind.PrefixUnaryExpression: case SyntaxKind.PostfixUnaryExpression:
                     typeSet.add(TYPE_NUMBER);
                     return typeSet;
                 default:
-                    typeSet.add(`$CompExp${initializer.kind}`); // Complex Expression
+                    typeSet.add(`${TYPE_E_COMPEXP}${initializer.kind}`); // Complex Expression
                     return typeSet;
             }
         }else{
-            typeSet.add(`$CompExp`); // Complex Expression
+            typeSet.add(TYPE_E_COMPEXP); // Complex Expression
             return typeSet;
         }
     }
@@ -158,12 +165,8 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
 function getTypeFromInitializer(init: ts.Expression | undefined, declarations: Declaration[]): Set<string> {
     const typeSet = new Set<string>();
     let initializer;
-    if(!init){
-        typeSet.add("$UndefinedINIT");
-        return typeSet;
-    }
-    if(!(init.kind)){
-        typeSet.add("$UnknownKIND");
+    if(!init || !(init.kind)){
+        typeSet.add(TYPE_E_UNDEFINED);
         return typeSet;
     }
     switch(init.kind) {
@@ -234,6 +237,12 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             objTypeStr = objTypeStr.slice(0, -2) + " }";
             typeSet.add(objTypeStr);
             return typeSet;
+        // case SyntaxKind.PropertyAccessExpression: // 194
+        //     const propertyTarget = (init as unknown as { expression : any }).expression;
+        //     console.log(propertyTarget);
+        //     const propertyTargetType = typeSet2Str(getTypeFromInitializer(propertyTarget, declarations));
+        //     console.log(propertyTargetType);
+        //     return typeSet;
         case SyntaxKind.ParenthesizedExpression: // 200
             initializer = (init as unknown as  { expression : any });  
             return getTypeFromInitializer(initializer.expression, declarations);
@@ -269,7 +278,7 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                     typeSet.add(TYPE_NUMBER);
                     return typeSet;
                 default:
-                    typeSet.add("$UnaryOp?"); // UnChecked Unary Operation?
+                    typeSet.add(TYPE_E_COMPUNARY); // UnChecked Unary Operation?
                     return typeSet;
             }
         case SyntaxKind.BinaryExpression: // 209
@@ -291,7 +300,7 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
                 return typeSet;
             }
         default:
-            typeSet.add(`$Undefined${init?.kind}`);
+            typeSet.add(`${TYPE_E_UNCHECKED}${init?.kind}`);
             return typeSet;
     }
 }

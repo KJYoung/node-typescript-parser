@@ -14,16 +14,23 @@ const TYPE_NUMBER = "number";
 const TYPE_STRING = "string";
 const TYPE_BOOLEAN = "boolean";
 // TYPE string with $ means some error.
+const TYPE_E_MULTIPLE = "$Wrong";
+const TYPE_E_IMPORT = "$Imported";
+const TYPE_E_EXPDEEP = "$Deep";
+const TYPE_E_COMPEXP = "$CompExp";
+const TYPE_E_COMPUNARY = "$UnaryOp";
+const TYPE_E_UNDEFINED = "$UndefinedINIT";
+const TYPE_E_UNCHECKED = "$NotChecked";
 function getTypeOfVar(name, declarations) {
     function findNodeByName(declaration, keyword) {
         return declaration.name === keyword;
     }
     const node = declarations.filter(dec => findNodeByName(dec, name));
     if (node.length > 1) {
-        return "$Wrong"; // Maybe Multiple identifier
+        return TYPE_E_MULTIPLE; // Maybe Multiple identifier
     }
     else if (node.length == 0) {
-        return "$Imported"; // Maybe Imported from other TypeScript file.
+        return TYPE_E_IMPORT; // Maybe Imported from other TypeScript file.
     }
     else {
         return node[0].type;
@@ -165,19 +172,19 @@ function getBinaryExpressionType(initializer, declarations) {
                                 return typeSet;
                             }
                     }
-                    typeSet.add(`Deep${initializer.operatorToken.kind}`); // Should Go Deeper? OR Unchecked.
+                    typeSet.add(`${TYPE_E_EXPDEEP}${initializer.operatorToken.kind}`); // Should Go Deeper? OR Unchecked.
                     return typeSet;
                 case typescript_1.SyntaxKind.PrefixUnaryExpression:
                 case typescript_1.SyntaxKind.PostfixUnaryExpression:
                     typeSet.add(TYPE_NUMBER);
                     return typeSet;
                 default:
-                    typeSet.add(`$CompExp${initializer.kind}`); // Complex Expression
+                    typeSet.add(`${TYPE_E_COMPEXP}${initializer.kind}`); // Complex Expression
                     return typeSet;
             }
         }
         else {
-            typeSet.add(`$CompExp`); // Complex Expression
+            typeSet.add(TYPE_E_COMPEXP); // Complex Expression
             return typeSet;
         }
     }
@@ -185,12 +192,8 @@ function getBinaryExpressionType(initializer, declarations) {
 function getTypeFromInitializer(init, declarations) {
     const typeSet = new Set();
     let initializer;
-    if (!init) {
-        typeSet.add("$UndefinedINIT");
-        return typeSet;
-    }
-    if (!(init.kind)) {
-        typeSet.add("$UnknownKIND");
+    if (!init || !(init.kind)) {
+        typeSet.add(TYPE_E_UNDEFINED);
         return typeSet;
     }
     switch (init.kind) {
@@ -266,6 +269,12 @@ function getTypeFromInitializer(init, declarations) {
             objTypeStr = objTypeStr.slice(0, -2) + " }";
             typeSet.add(objTypeStr);
             return typeSet;
+        // case SyntaxKind.PropertyAccessExpression: // 194
+        //     const propertyTarget = (init as unknown as { expression : any }).expression;
+        //     console.log(propertyTarget);
+        //     const propertyTargetType = typeSet2Str(getTypeFromInitializer(propertyTarget, declarations));
+        //     console.log(propertyTargetType);
+        //     return typeSet;
         case typescript_1.SyntaxKind.ParenthesizedExpression: // 200
             initializer = init;
             return getTypeFromInitializer(initializer.expression, declarations);
@@ -304,7 +313,7 @@ function getTypeFromInitializer(init, declarations) {
                     typeSet.add(TYPE_NUMBER);
                     return typeSet;
                 default:
-                    typeSet.add("$UnaryOp?"); // UnChecked Unary Operation?
+                    typeSet.add(TYPE_E_COMPUNARY); // UnChecked Unary Operation?
                     return typeSet;
             }
         case typescript_1.SyntaxKind.BinaryExpression: // 209
@@ -328,7 +337,7 @@ function getTypeFromInitializer(init, declarations) {
                 return typeSet;
             }
         default:
-            typeSet.add(`$Undefined${init === null || init === void 0 ? void 0 : init.kind}`);
+            typeSet.add(`${TYPE_E_UNCHECKED}${init === null || init === void 0 ? void 0 : init.kind}`);
             return typeSet;
     }
 }
