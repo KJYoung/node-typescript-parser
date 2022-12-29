@@ -1,17 +1,11 @@
 import { SyntaxKind, VariableStatement } from 'typescript';
-import ts = require('typescript');
+import * as ts from 'typescript';
 
 import { CallableDeclaration, Declaration } from '../declarations/Declaration';
 import { VariableDeclaration } from '../declarations/VariableDeclaration';
 import { Resource } from '../resources/Resource';
 import { isCallableDeclaration } from '../type-guards/TypescriptHeroGuards';
 import { getNodeType, isNodeExported } from './parse-utilities';
-
-function typeSet2Str(typeSet : Set<string>) :string {
-    let typeStr = "";
-    typeSet.forEach(t => typeStr += (" | " + t) );
-    return typeStr.slice(3);
-}   
 
 const TYPE_NUMBER = "number";
 const TYPE_STRING = "string";
@@ -25,6 +19,14 @@ const TYPE_E_COMPUNARY = "$UnaryOp";
 const TYPE_E_UNDEFINED = "$UndefinedINIT";
 const TYPE_E_UNCHECKED = "$NotChecked";
 
+// TypeSet to String converter.
+function typeSet2Str(typeSet : Set<string>) :string {
+    let typeStr = "";
+    typeSet.forEach(t => typeStr += (" | " + t) );
+    return typeStr.slice(3);
+}   
+
+// Get Type of Variable from Previous Declaration[].
 function getTypeOfVar(name : string, declarations: Declaration[]): string {
     function findNodeByName(declaration : Declaration, keyword : string): boolean{
         return declaration.name === keyword;
@@ -39,23 +41,26 @@ function getTypeOfVar(name : string, declarations: Declaration[]): string {
     }
 }
 
+// Parse BinaryExpression Initializer.
 function getBinaryExpressionType(initializer: any, declarations: Declaration[]): Set<string> {
     let typeSet = new Set<string>();
-    // Consider operation...
+    // Considered operations...
     // number, number => number +, -, *, / , %
     // number => number ++, --
     // number, number => boolean >, <, >=, <=, ==, !=
-    // (hard. true && 3 => number, false && 4 => boolean : we have to know the value) &&, ||, !
-    // &, |, ^, ~, <<, >>, >>>
-    // =, +=, -=, *=, /=
-    // unary -, string concat +, conditional 'A ? B : C', typeof, instanceof
-    // Should check string concat first, then just evaluate except string concat.
-    const isStringConcat : (initializer : any) => [boolean, boolean] = (initializer: any) => {
+    // (hard. true && 3 => number, false && 4 => boolean : we have to know the value) => &&, ||, !
+    // bitwise &, |, ^, ~, <<, >>, >>>
+    // assignment =, +=, -=, *=, /=
+    // unary -, string concat +, conditional 'A ? B : C'
+    // typeof, instanceof
+
+    // Check string concat first, then just evaluate except string concat.
+    const isStringConcat : (initializer : any) => boolean = (initializer: any) => {
         if(initializer && initializer.operatorToken){
             if(initializer.operatorToken.kind === SyntaxKind.PlusToken){
                 // String?
                 if(initializer.left?.kind === SyntaxKind.StringLiteral || initializer.right?.kind === SyntaxKind.StringLiteral){
-                    return [true, false];
+                    return true;
                 // Parenthesized Expression?
                 }else if(initializer.left?.kind === SyntaxKind.ParenthesizedExpression && initializer.right?.kind === SyntaxKind.ParenthesizedExpression){
                     return isStringConcat({ left : initializer.left.expression, operatorToken : { kind : SyntaxKind.PlusToken }, right : initializer.right.expression });
@@ -67,29 +72,22 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
                 }else{
                     const leftSet = getTypeFromInitializer(initializer.left, declarations);
                     const rightSet = getTypeFromInitializer(initializer.right, declarations);
-                    if(leftSet.has(TYPE_STRING) || rightSet.has(TYPE_STRING)){
-                        return [true, false];
-                    }else{
-                        return [false, false];
-                    }
+                    return leftSet.has(TYPE_STRING) || rightSet.has(TYPE_STRING);
                 }
             }else{
                 const resultLeft = isStringConcat(initializer.left);
                 const resultRight = isStringConcat(initializer.right);
-                return [resultLeft[0] || resultRight[0], resultLeft[1] || resultRight[1]]
+                return resultLeft || resultRight;
             }
         }else{
-            return [false, false];
+            return false;
         }
     }
     const isStringConcatResult = isStringConcat(initializer);
-    if(isStringConcatResult[0]){
+    if(isStringConcatResult){
         typeSet.add(TYPE_STRING);
         return typeSet;
     }else{
-        if(isStringConcatResult[1]){
-            // console.log("Maybe StringConcat?");
-        }
         if(initializer && initializer.kind ){
             switch(initializer.kind){
                 case SyntaxKind.NumericLiteral: case SyntaxKind.BigIntLiteral: // 8, 9
@@ -162,6 +160,7 @@ function getBinaryExpressionType(initializer: any, declarations: Declaration[]):
     }
 }
 
+// Parse Initializer to get TypeSet.
 function getTypeFromInitializer(init: ts.Expression | undefined, declarations: Declaration[]): Set<string> {
     const typeSet = new Set<string>();
     let initializer;
@@ -262,7 +261,7 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
             parameters.forEach((param : any) => {
                 nodeType += getNodeType(param.type)
             });
-            nodeType += " => unknown";
+            nodeType += " => unknown"; // TODO
             typeSet.add(nodeType);
             return typeSet;
         case SyntaxKind.TypeOfExpression: // 204
@@ -305,12 +304,9 @@ function getTypeFromInitializer(init: ts.Expression | undefined, declarations: D
     }
 }
 
-// function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : ts.NodeArray<ts.VariableDeclaration>): string {
+// Get Type String from Declaration.
 function getTypeTextFromDeclaration(o : ts.VariableDeclaration, declarations : Declaration[]): string {
-    // Rule 1 : initializer.kind == Basic Literal?
-    // Rule 2 : initializer has operatorToken?
-    const typeSet = getTypeFromInitializer(o.initializer, declarations);
-    return typeSet2Str(typeSet);
+    return typeSet2Str(getTypeFromInitializer(o.initializer, declarations));
 }
 
 /**
@@ -324,9 +320,7 @@ export function parseVariable(parent: Resource | CallableDeclaration, node: Vari
     const isConst = node.declarationList.getChildren().some(o => o.kind === SyntaxKind.ConstKeyword);
     if (node.declarationList && node.declarationList.declarations) {
         node.declarationList.declarations.forEach((o) => {
-            // console.log(o);
             if (isCallableDeclaration(parent)) {
-                // const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, parent.variables), node.getStart(), node.getEnd());
                 const declaration = new VariableDeclaration(o.name.getText(), isConst, isNodeExported(node), getTypeTextFromDeclaration(o, []), node.getStart(), node.getEnd());
                 parent.variables.push(declaration);
             } else {
